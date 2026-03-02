@@ -39,7 +39,7 @@ modelscope download --dataset DiffSynth-Studio/example_video_dataset --local_dir
 创建并配置 `my_train.sh` 脚本：
 ```bash
 # my_train.sh 文件内容
-accelerate launch --mixed_precision="bf16" DiffSynth-Studio/examples/wanvideo/model_training/train.py \
+accelerate launch DiffSynth-Studio/examples/wanvideo/model_training/train.py \
   --dataset_base_path data/example_video_dataset \
   --dataset_metadata_path data/example_video_dataset/metadata.csv \
   --height 480 \
@@ -64,3 +64,13 @@ CUDA_VISIBLE_DEVICES=0 bash my_train.sh
 ## 3. 辅助工具部署
 * **版本控制**：将远程算力服务器的本地工作区接入 GitHub 仓库，保障后续 DiT 架构源码修改的可追溯性与代码安全。
 * **AI 编码辅助**：在本地环境部署 ClaudeCode 工具，为下一步编写交叉注意力改造代码与自定义数据加载器（Dataloader）做效能准备。
+
+## 4. 核心卡点与排坑记录
+
+### 4.1 模型权重路径与验证冲突问题
+* **问题描述**：为了加速部署，起初尝试通过外挂脚本预先下载 Wan2.1 模型到本地自定义目录，并在微调脚本 (`my_train.sh`) 中直接指定该本地路径。但这触发了 DiffSynth 框架底层的正则解析错误（`Invalid repo_id` 报错）；随后尝试强制移动文件夹，又触发了 ModelScope 严苛的缓存防伪校验机制，导致框架判定缓存损坏并反复重新联网下载。
+* **解决方案**：顺水推舟，放弃强制的本地路径重定向。在 `.sh` 脚本中**严格保持官方标准的仓库命名格式**（即 `Wan-AI/Wan2.1-T2V-1.3B`）。让框架在首次运行时自动接管下载逻辑，将权重完整写入系统默认的 ModelScope 缓存目录 (`~/.cache/modelscope/hub/`)。此举建立了符合框架规范的缓存体系，后续运行可实现本地秒读。
+
+### 4.2 最新架构显卡 (RTX 5090) 的 PyTorch 驱动断层问题
+* **问题描述**：完成模型加载后，在向显卡分配张量时遭遇致命报错：`RuntimeError: CUDA error: no kernel image is available for execution on the device`。经排查，由于 RTX 5090 采用的是地表最新的 Blackwell 架构（代号 `sm_120`），而常规途径安装的稳定版 PyTorch 最高仅支持到 Hopper 架构 (`sm_90`)，导致缺乏对应的底层 Kernel 驱动，无法调度算力。
+* **解决方案**：彻底清理旧版环境，跨过国内常规镜像源（因分支库不全导致 404），直接通过 PyTorch 官方源拉取**指定基于 CUDA 12.8 编译**的专属稳定版引擎（`torch==2.7.1+cu128`）。成功跨越架构代沟，全面激活 5090 算力矩阵。
