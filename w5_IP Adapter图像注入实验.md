@@ -1,4 +1,4 @@
-# PVTT 商品视频迁移实验报告 v2
+# IP Adapter迁移实验报告 v2
 
 **项目**：Product Video Transfer Task (PVTT)
 **实验周期**：2026-03
