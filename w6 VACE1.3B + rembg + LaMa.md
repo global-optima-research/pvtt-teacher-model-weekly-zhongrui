@@ -1,4 +1,4 @@
-# 周报 | Weekly Report
+# w6 VACE1.3B + rembg + LaMa
 
 ---
 
